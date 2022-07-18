@@ -1,0 +1,616 @@
+---
+title: "Cuarto Parcial"
+author: "Joshelyn Yanori Mendoza Alfaro & Fernando Ramírez González "
+date: "30/8/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+Análisis de empleabilidad y creación de un motor de búsqueda para IT con aspirantes con experiencia menor a tres años
+<center>Joshelyn Mendonza Alfaro </center>
+<center>Fernando Ramírez González </center>
+<center>Equipo 8</center>
+
+Objetivo:
+En el siguiente documento se describirán las bases de datos actualizadas para el caso de búsqueda de cualidades preferidas por los empleadores, con un enfoque especial tanto en habilidades duras como blandas, buscando ponderar cada una con el resultado final, y así predecir la empleabilidad de algunos candidatos. 
+Para este proyecto se utilizarán dos bases de datos en formato CSV. 
+
+Para la recuperación de las bases de datos se realizó web scraping desde Python, se usa requests para permitir obtener información de una URL, bs4 para la recuperación de los diferentes campos y pandas para el manejo de los datos a dataframe y generación del CSV. 
+
+```{python}
+#A continuación se presenta el código, este código es una generalización se llamó la función 4 veces una para cada posición buscada, cambiando la URL. 
+# Se importan las librerías requests, bs4(BeautifulSoup) y pandas.  
+# import requests
+# from bs4 import BeautifulSoup
+# import pandas as pd
+# #Aquí se llama a la URL y se prepara el contenido de la página para ser extraido 
+# def extract(page):
+# #Here we use requests
+#   headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:91.0) Gecko/20100101 Firefox/91.0"}
+#   url = f"https://mx.indeed.com/jobs?q=software+engineer&start={page}"
+#   r = requests.get(url, headers)
+#   soup = BeautifulSoup(r.content, "html.parser")
+#   return soup 
+# #En esta sección se revisan las divsiones de la página web y se extraen las categorías que se buscan 
+# def transform(soup): 
+#   divs = soup.find_all("div", class_ = "job_seen_beacon")
+#   for item in divs:
+#     position = item.find("span", class_ = "").text
+#     company = item.find("span", class_ = "companyName").text
+#     location = item.find("div", class_ = "companyLocation").text
+#     try:
+#       salary = item.find("span", class_ = "salary-snippet").text
+#     except:
+#       salary = " "
+#     summary = item.find("div", class_ = "heading6 tapItem-gutter result-footer").text.replace("\n", " ")
+#     job = { "Position": position, "Company": company, "Location": location, "Salary": salary ,"Summary": summary}
+#     joblist.append(job)
+#   return
+# #Se une todo el contenido a la lista 
+# joblist= []
+# #Se itera para obtener 
+# for i in range(0,90,5):
+#   c = extract(0)
+#   transform(c)
+# #Después se exportó a csv, es importante notar que el proceso fue realizado en Google Colab por lo que algunas cosas del código podrían ser diferentes 
+# from google.colab import files
+# df.to_csv("data1.csv")
+# files.download("data1.csv")
+# #Finalmente se hizo un merge de los csvs
+# import pandas as pd 
+# from glob import glob
+# merged_data = pd.concat(pd.read_csv(datafile).assign(sourcefilename = datafile) for datafile in data_files)
+# merged_data.to_csv("data_IT_job_offer.csv")
+```
+Ahora una vez obtenidas las bases de datos se importan mediante el uso de los comandos read.csv() que generan un dataframe.
+```{r}
+#Aquí se importan los datos obtenidos a partir de la base de datos de Indeed obtenida por web scraping 
+base_indeed <- read.csv("IT_job_offer.csv", fileEncoding = "UTF-8")
+View(base_indeed)
+#esta base de datos fue obtenido a partir perfiles de LinkedIn
+base_linkedin <- read.csv("Database_LinkedInJ.csv", encoding = "UTF-8")
+View(base_linkedin)
+#Se observa el importe de ambas bases de datos 
+View(base_linkedin)
+View(base_indeed)
+```
+Posteriormente, se realiza la limpieza de la base de datos, una vez se encuentra como dataframe. 
+```{r}
+#Primero se eliminan las columnas innecesarias, para poder realizar un buen manejo visual 
+base_indeed <- base_indeed[ ,-c(1,2,8)]
+#Eliminación de las ofertas con contenido repetido 
+library(dplyr)
+base_indeed <- base_indeed %>% distinct()
+#Aquí se realiza la eliminación de trabajos que no coinciden con las categorías preasignadas y summary en español
+base_indeed <- base_indeed[-c(1,2,6,10,11,12,13,14,16,17,20,22,23,24,25,26,29,30,32,35,36,37,38,39,40,43,46,47,48,51,52,53,54,55,56,58,61,62,63,65,67,68,69,70,73,74,80,81,86,87,88,101,104,108,112,113,116,122,127,129), ]
+#Se observa el cambio de la variable 
+View(base_indeed)
+#Ahora se limpia la base de datos de LinkedIn, que ya está limpia 
+View(base_linkedin) 
+#Limpia de palabras no deseadas
+base_indeed$Summary <- gsub("hace", "", base_indeed$Summary)
+base_indeed$Summary <- gsub("días.más", "",base_indeed$Summary)
+base_indeed$Summary <- gsub("y", "",base_indeed$Summary)
+base_indeed$Summary <- gsub("de", "",base_indeed$Summary)
+base_indeed$Summary <- gsub("en", "",base_indeed$Summary)
+```
+Elección de variables importantes, para este estudio casi no se eliminan variables, solo algunas como archivo de origen e índices generados que son extras debido al merge de los dataframes. 
+```{r}
+#Primero se revisan las variables disponibles 
+names(base_linkedin)
+#Para el caso de LinkedIn todas las variables son de interes, por lo que se mantienen. 
+#Ahora se revisan para la base de datos recién limpiada 
+names(base_indeed)
+# Y se revisa que las variables son solo las de interés ya que fueron obtenidas por web scraping y se realizo solo para esas variables. 
+```
+Renombrando variables, una vez se seleccionaron las variables se renombrarán para dejarlas todas en inglés y con nombre adecuado. 
+```{r}
+#Para esta sección se renombra la variable Hard skills de la base de datos de LinkedIn
+names(base_linkedin)[7] <- "Hard skills"
+#Se observa el cambio del nombre de la variable 
+names(base_linkedin)
+#En este caso no se necesita renombrar ninguna variable de la base de datos de Indeed 
+```
+Ahora, se observa un pequeño resumen de ambas bases de datos. 
+```{r}
+#Se usa el comando summart 
+summary(base_linkedin)
+summary(base_indeed)
+```
+Revisión de la estructura de la base de datos, para ver tipos de variables y su posible análisis. 
+```{r}
+#Revisión de la estructura de ambas bases de datos 
+str(base_linkedin)
+str(base_indeed)
+```
+**Sacar la base de datos**
+```{r}
+ write.csv(base_indeed,"C:\\Users\\Fernando.DESKTOP-608G9HT\\Documents\\Cosas personales Fer\\Tecnología\\Tercer semestre\\Estancias III\\Bases_reales\\indeed\\DF.csv",row.names = FALSE )
+```
+**Fragmentación en subsets**
+```{r}
+#Software engineer subset
+software_engineer <- (base_indeed[1:17,])
+View(software_engineer)
+#Machine Learning engineer subset
+machine_learningE <- base_indeed[c(18,19,20,21,22,23,25,26,27,29), ]
+#Cybersecurity expert subset
+cybersecurity_expert <- base_indeed[c(30:54),]
+#Data scientist 
+data_scientist <- base_indeed[c(24,28,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70),]
+```
+
+**Preparación del corpus**
+```{r}
+library(tm)
+library(ggplot2)
+library(wordcloud)
+library(RWeka)
+library(corpus)
+#Preparación de software engineer
+#Rellenar los espacios vacios 
+software_engineer[software_engineer == ""] <- NA
+#Transformar los datos a corpus
+corpSFEN <- Corpus(VectorSource(software_engineer$Summary))
+#Exportar a csv 
+write.csv(software_engineer,"C:\\Users\\Fernando.DESKTOP-608G9HT\\Documents\\Cosas personales Fer\\Tecnología\\Tercer semestre\\Estancias III\\Bases_reales\\indeed\\software_engineer.csv",row.names = FALSE )
+#Modificaciones en el corpus 
+corpSFEN <- tm_map(corpSFEN, content_transformer(tolower))
+corpSFEN <- tm_map(corpSFEN, removeNumbers)
+corpSFEN<- tm_map(corpSFEN, removeWords, stopwords("english"))
+corpSFEN <- tm_map(corpSFEN, removePunctuation)
+corpSFEN <- tm_map(corpSFEN, stripWhitespace)
+#Preparación Machine Learning Engineer
+#Rellenar los espacios vacios 
+machine_learningE[machine_learningE == ""] <- NA
+#Transformar los datos a corpus
+corpMLE <- Corpus(VectorSource(machine_learningE$Summary))
+#Exportar a csv 
+ write.csv(machine_learningE,"C:\\Users\\Fernando.DESKTOP-608G9HT\\Documents\\Cosas personales Fer\\Tecnología\\Tercer semestre\\Estancias III\\Bases_reales\\indeed\\machine_learningE.csv",row.names = FALSE )
+#Preparación del corpus 
+corpMLE <- tm_map(corpMLE, content_transformer(tolower))
+corpMLE <- tm_map(corpMLE, removeNumbers)
+corpMLE<- tm_map(corpMLE, removeWords, stopwords("english"))
+corpMLE <- tm_map(corpMLE, removePunctuation)
+corpMLE <- tm_map(corpMLE, stripWhitespace)
+#Preparación de cybersecurity expert 
+#Rellenar los espacios vacios 
+cybersecurity_expert[cybersecurity_expert == ""] <- NA
+#Transformar los datos a corpus
+corpCSE <- Corpus(VectorSource(cybersecurity_expert$Summary))
+#Exportar a csv
+ write.csv(cybersecurity_expert,"C:\\Users\\Fernando.DESKTOP-608G9HT\\Documents\\Cosas personales Fer\\Tecnología\\Tercer semestre\\Estancias III\\Bases_reales\\indeed\\cybersecurity_expert.csv",row.names = FALSE )
+#Preparación del corpus 
+corpCSE <- tm_map(corpCSE, content_transformer(tolower))
+corpCSE <- tm_map(corpCSE, removeNumbers)
+corpCSE<- tm_map(corpCSE, removeWords, stopwords("english"))
+corpCSE <- tm_map(corpCSE, removePunctuation)
+corpCSE <- tm_map(corpCSE, stripWhitespace)
+#Preparacion de data scientist 
+#Rellenar los espacios vacios 
+data_scientist[data_scientist == ""] <- NA
+#Transformar los datos a corpus
+corpDTSC <- Corpus(VectorSource(data_scientist$Summary))
+#Exportar a csv 
+ write.csv(data_scientist,"C:\\Users\\Fernando.DESKTOP-608G9HT\\Documents\\Cosas personales Fer\\Tecnología\\Tercer semestre\\Estancias III\\Bases_reales\\indeed\\data_scientist.csv",row.names = FALSE )
+corpDTSC <- tm_map(corpDTSC, content_transformer(tolower))
+corpDTSC <- tm_map(corpDTSC, removeNumbers)
+corpDTSC<- tm_map(corpDTSC, removeWords, stopwords("english"))          
+corpDTSC <- tm_map(corpDTSC, removePunctuation)
+corpDTSC <- tm_map(corpDTSC, stripWhitespace)
+```
+**Análisis por n-gramas**
+**Software Engineer**
+```{r}
+library(ggplot2)
+#Bigrams 
+#Se establece el mínimo número de n-gramas
+minfreq_trigramSFE <- 2
+#Se establacen las limitaciones a partir de las cuales se buscará un n-grama nuevo
+token_delimSFEN <- " \\.!?,;\"()"
+tokenizerSFEN <- NGramTokenizer(corpSFEN, Weka_control(min = 1, max = 10, delimiters = token_delimSFEN))
+#Se ordena el dataframe en orden ascendente
+three_wordSFE <- data.frame(table(tokenizerSFEN))
+#Se ordena el dataframe en orden ascendente
+sort_threeSFE <- three_wordSFE[order(three_wordSFE$Freq, decreasing = TRUE),]
+sort_threeSFE
+#Se realiza un gráfico de tipo nube de palabras para observar las palabras más frecuentes 
+wordcloud(sort_threeSFE$tokenizerSFEN,sort_threeSFE$Freq, random.order = FALSE, scale = c(2,0.5), min.freq = minfreq_trigramSFE, colors = brewer.pal(7,"Dark2"), max.words = 100)
+```
+Esta es la nube de palabras para el área ingeniero de software, podemos observar que las habilidades duras son las más presentadas dentro de los perfiles profesionales; encontrando para el caso del ingeniero de software; software como la palabra más repetida, sin embargo, vemos que para este sector es de gran importancia la experiencia, ya que se encuentra como la segunda palabra más repetida y development como la tercera palabra más repetida. Dspués encontramos términos de habilidades técnicas como lo pueden ser software development y agilescrum con 3 apariciones. Algo muy particular de este gráfico es la mención de la necesidad de experiencia mediante el uso de diferentes n-gramas, llevando a considerar esta como la habilidad blanda más importante y el desarrollo de buenas práticas de software o uso de metodología scrum como la habilidad dura más relevante para el cargo. 
+**Análisis de correlación**
+```{r}
+#Se importan las librerías
+library(PerformanceAnalytics)
+library(Hmisc)
+#Para este análisis de correlación los valores no disponibles son sustituidos por ceros 
+mydataSFEN <- read.csv("ProfileITforRegresionSFEN(11.11.21).csv", header = TRUE)
+fix(mydataSFEN)
+#Se eliminan los NAs y la columna de nombres, se elimina analitical thinking, french, data visualization y korean
+mydataSFEN2 <- mydataSFEN[,2:41]
+View(mydataSFEN2)
+#Se obtiene la correlación
+corrmydataSFEN <- chart.Correlation(mydataSFEN2, histogram = T,hist.col = "#00AFBB",density = TRUE, method = "spearman")
+corrSFEN <- rcorr(as.matrix(mydataSFEN2), type = "spearman")
+corrSFEN
+#Espacio de pruebas para la mejora del gráfico
+library(GGally)
+ggcorr(mydataSFEN2, method = c("everything", "spearman"))
+
+```
+**Análisis de componentes principales**
+```{r}
+#Se importan las librerías 
+library(devtools)
+library(factoextra)
+#Realizar el análisis del por componentes 
+mydataSFEN2.pca <- prcomp(mydataSFEN2)
+#Se obtiene la dimensión principal
+center <- mydataSFEN2.pca$center
+#Se observan los componentes de esta dimensión
+center
+summary(mydataSFEN2.pca)
+#Gráfica de contribución por dimensión
+fviz_eig(mydataSFEN2.pca)
+#Gráfico que muestra la proximidad de los perfiles de los candidatos entre ellos 
+fviz_pca_ind(mydataSFEN2.pca, axes=c(1,2) ,col.ind = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+#Gráfico de la correlación de las variables 
+fviz_pca_var(mydataSFEN2.pca, axes = c(1,2) ,col.var = "contrib", gradient.cols= c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+biplot(mydataSFEN2.pca, scale = 0)
+resulstsVarSFEN <- get_pca_var(mydataSFEN2.pca)
+resulstsVarSFEN$cos2
+#espacio para pruebas
+library(ggfortify)
+autoplot(mydataSFEN2.pca, data = mydataSFEN2, colour = "Job", shape = FALSE, label.size = 3.5)
+```
+**Análisis por regresión logísitica**
+```{r}
+#Creative, 
+#Se importan las librerías 
+library(glm.predict)
+library(caTools)
+#Separación de los datos en dos segmentos 
+#mydataSFEN2$Job <- factor(mydataSFEN2$Job,levels = c(0,1))
+splitSFEN <- sample.split(mydataSFEN$Job, SplitRatio = 0.75)
+traininigSFEN <- subset(mydataSFEN, splitSFEN == TRUE)
+testSFEN <- subset(mydataSFEN, splitSFEN == FALSE)
+#Asignación de pesos 
+WSFEN <- as.matrix(c(0.025,0.025,0.12,0.025,0.025,0.025,0.025,0.025, 0.025, 0.05,0.025,0.025,0.025, 0.025, 0.025,0.025,0.025,0.025,0.05,0.025,0.025,0.05,0.025,0.025,0.025,0.025,0.025,0.025,0.15, 0.07,0.025,0.025,0.025,0.025,0.025,0.025,0.07,0.07,0.025,0.15))
+ficticio <- c(1:12)
+ficticio
+matrixtest <- matrix(nrow = 12, ncol = 39,data = runif(39, 0.1, 0.99))
+View(matrixtest)
+names(mydataSFEN2)
+#Se implementa el modelo de regresión logística 
+modelSFEn <- glm(Job~.,family = binomial(link = "logit"), data = traininigSFEN)
+summary(modelSFEn)
+length(traininigSFEN$Job)
+summary(modelSFEn)
+View(mydataSFEN2)
+#Se visualizan los datos 
+anova(modelSFEn, test = "Chisq")
+```
+Test
+```{r}
+library(pscl)
+pR2(modelSFEn)
+fitted.results <- predict(modelSFEn, newdata = testSFEN, type = "response")
+fitted.results <- ifelse(fitted.results > 0.5,1,0)
+misClasificacError <- mean(fitted.results != testSFEN$Job)
+print(paste("Accuracy", 1 - misClasificacError))
+```
+**Análisis por SVM**
+```{r}
+#Clasificador 
+mydataSFEN2$Job <- as.factor(mydataSFEN2$Job)
+ClasifSFEN <- svm(Job~Solution.refining..0.15.+Software.development..0.15.+Experience..0.12. + Team.work..0.05. + Creative  + Backend.skills, data = traininigSFEN, kernel = "linear", cost = 10, scale = FALSE)
+predictSFEN <-  predict(ClasifSFEN, testSFEN[,c(4,30,41,16,11,27)] )
+#Resumen
+ClasifierSFEN
+predictSFEN == mydataSFEN$Job
+#Gráficos 
+1 - (4/16)
+```
+**Machine Learning Engineer**
+```{r}
+#Bigrams 
+#Se establece el mínimo número de n-gramas
+minfreq_trigramML <- 2
+#Se establacen las limitaciones a partir de las cuales se buscará un n-grama nuevo
+token_delimML <- " \\.!?,;\"()"
+tokenizerML <- NGramTokenizer(corpMLE, Weka_control(min = 1, max = 10, delimitersML = token_delimML))
+#Se tokenizan los términos 
+three_wordML <- data.frame(table(tokenizerML))
+#Se ordena el dataframe en orden ascendente
+sort_threeML <- three_wordML[order(three_wordML$Freq, decreasing = TRUE),]
+sort_threeML
+#Se realiza un gráfico de tipo nube de palabras para observar las palabras más frecuentes 
+wordcloud(sort_threeML$tokenizerML,sort_threeML$Freq, random.order = FALSE, scale = c(2.0,0.35), min.freq = minfreq_trigramML, colors = brewer.pal(7,"Dark2"), max.words = 50)
+
+```
+Esta es la nube de palabras corresponde al área ingeniero de machine learning, podemos observar que las habilidades duras son las más presentadas dentro de los perfiles profesionales; encontrando para el caso del ingeniero de machine learning; siendo el n-grama machine learning el término con mayor repetición, mientras que observamos que en el área de habilidades duras es importante el conocimiento de estructuras de datos, el uso de redes, así como la construcción de modelos. Para este puesto no se mencionan habilidades blandas particulares, solo se implica el hecho de que se deberá colaborar debido a la aparición del n-grama consulting managers. 
+**Análisis de correlación**
+```{r}
+#Para este análisis de correlación los valores no disponibles son sustituidos por ceros 
+mydataMLE <- read.csv("ProfileITforRegresionMLE(13.11.21).csv", header = TRUE)
+View(mydataMLE)
+library(PerformanceAnalytics)
+library(Hmisc)
+#Se eliminan los NAs y la columna de nombres, se elimina analitical thinking, french, data visualization y korean
+mydataMLE2 <- mydataMLE[-c(1,2)]
+View(mydataMLE2)
+summary(mydataMLE2)
+#Se obtiene la correlación
+corrmydataMLE <- chart.Correlation(mydataMLE2, histogram = T, method = "spearman")
+corrMLE <- rcorr(as.matrix(mydataMLE2), type = "spearman")
+corrMLE
+ggcorr(mydataMLE2, method = c("everything", "spearman"))
+```
+**Análisis de componentes principales**
+```{r}
+library(devtools)
+library(factoextra)
+structure(mydataMLE2)
+fix(mydataMLE2)
+#Análisis por componentes principales
+mydataMLE2.pca <- prcomp(mydataMLE2)
+#Centro
+centerMLE <- mydataMLE2.pca$center
+#Rotación
+rotationMLE <- mydataMLE2.pca$rotation 
+summary(mydataMLE2.pca)
+#Gráfica de contribución por dimensión
+fviz_eig(mydataMLE2.pca)
+#Gráfico que muestra la proximidad de los perfiles de los candidatos entre ellos 
+fviz_pca_ind(mydataMLE2.pca, axes=c(1,2) ,col.ind = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+#Gráfico de la correlación de las variables 
+fviz_pca_var(mydataMLE2.pca, axes = c(1,2) ,col.var = "contrib", gradient.cols= c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+resulstsVarMLE <- get_pca_var(mydataMLE2.pca)
+resulstsVarMLE$cos2
+#espacio para pruebas
+library(ggfortify)
+autoplot(mydataMLE2.pca, data = mydataMLE2, colour = "Job", shape = FALSE, label.size = 3.5)
+```
+**Análisis por regresión logísitica**
+Training 
+```{r}
+#Se importan las librerías 
+library(glm.predict)
+library(caTools)
+#Separación de los datos en dos segmentos 
+mydataMLE2$Job <- factor(mydataMLE2$Job, levels = c(0,1))
+splitMLE <- sample.split(mydataMLE$Job, SplitRatio = 0.75)
+trainingMLE <- subset(mydataMLE, splitMLE == TRUE)
+testMLE <- subset(mydataMLE, splitMLE == FALSE)
+#Asignación de pesos 
+WSFEN <- c(0.025,0.025,0.12,0.025,0.025,0.025,0.025,0.025, 0.025, 0.05,0.025,0.025,0.025, 0.025, 0.025,0.025,0.025,0.025,0.05,0.025,0.025,0.05,0.025,0.025,0.025,0.025,0.025,0.025,0.15, 0.07,0.025,0.025,0.025,0.025,0.025,0.025,0.07,0.07,0.025,0.15)
+#Se implementa el modelo de regresión logística 
+modelMLE <- glm(Job~.,family = binomial(link = "logit"), data = trainingMLE)
+summary(modelMLE)
+#Se visualizan los datos 
+anova(modelMLE, test = "Chisq")
+```
+Test 
+```{r}
+library(pscl)
+library(ggplot2)
+library(cowplot)
+pR2(modelMLE)
+fitted.resultsMLE <- predict(modelMLE, newdata = testMLE, type = "response")
+fitted.resultsMLE <- ifelse(fitted.resultsMLE > 0.5,1,0)
+misClasificacErrorMLE <- mean(fitted.resultsMLE != testMLE$Job)
+print(paste("Accuracy", 1 - misClasificacErrorMLE))
+```
+**Pruebas**
+```{r}
+#Plotting 
+plot(Job~.,data =trainingMLE,col="darkorange",pch="|", ylim= c(-1,1), main = "Using Logistic Regression for Classification") + abline(h = 0, lty=10) + abline(h=1, lty =10) + abline(h=0.5, lty=10) + curve(predict(modelMLE), data.frame(Job = x), type ="response")
+
+```
+**Análisis por SVM**
+```{r}
+#Clasificador 
+mydataMLE$Job <- as.factor(mydataMLE$Job)
+ClasifSMLE <- svm(Job~Machine.Learning.Programming.Skills+ Deep.Learning.Frameworks+ Mathematics+ Software.libraries.for.programming.languages + General.purpose.programming.skills+ Software.Development + Maintenance+ Team.work + Analytical.skills  +Experience + Hardware + Microsoft.Office, data = trainingMLE, kernel = "linear", cost = 10, scale = FALSE)
+predictMLE <-  predict(ClasifSMLE, testMLE[ , c(4,27,29,39,38,50,28,26,36,47,12,10)] )
+predictMLE == mydataMLE$Job
+1-(3/16)
+```
+
+**Cibersecurity expert**
+```{r}
+#Se establece el mínimo número de n-gramas 
+minfreq_trigramCSE <- 2
+#Se establacen las limitaciones a partir de las cuales se buscará un n-grama nuevo
+token_delimCSE <- " \\.!?,;\"()"
+#Se tokenizan los términos 
+tokenizerCSE <- NGramTokenizer(corpCSE, Weka_control(min = 1, max = 10, delimitersCSE = token_delimCSE))
+#Sse transforma en dataframe el token para ser analizado 
+three_wordCSE <- data.frame(table(tokenizerCSE))
+#Se ordena el dataframe en orden ascendente
+sort_threeCSE <- three_wordCSE[order(three_wordCSE$Freq, decreasing = TRUE),]
+sort_threeCSE
+#Se realiza un gráfico de tipo nube de palabras para observar las palabras más frecuentes 
+wordcloud(sort_threeCSE$tokenizerCSE,sort_threeCSE$Freq, random.order = FALSE, scale = c(2.0,0.35), min.freq = minfreq_trigramCSE, colors = brewer.pal(7,"Dark2"), max.words = 50)
+```
+Esta es la nube de palabras perteneciente al área de experto en ciberseguridad, podemos observar que las habilidades duras son las más presentadas dentro de los perfiles profesionales; encontrando para el caso del experto en ciberseguridad; cibersecurity como la palabra más repetida, después destacamos como habilidades blandas el trabajo en equipo con términos como support, collaborate o team y la importancia de la experiencia con el término experience. De habilidades duras se destaca el conocimiento de protocolos de seguridad y el manejo de diferentes pruebas de riesgo, así como algo de conocimiento de hardware. 
+**Análisis de correlación**
+```{r}
+#Para este análisis de correlación los valores no disponibles son sustituidos por ceros 
+mydataCSE <- read.csv("ProfileITforRegresionCSE(15.11.21).csv", header = TRUE)
+View(mydataCSE)
+library(PerformanceAnalytics)
+library(Hmisc)
+#Se eliminan los NAs y la columna de nombres, se elimina analitical thinking, french, data visualization y korean
+mydataCSE2 <- mydataCSE[-c(1)]
+summary(mydataCSE2)
+#Se obtiene la correlación
+corrmydataCSE <- chart.Correlation(mydataCSE2, histogram = T, method = "spearman")
+corrCSE <- rcorr(as.matrix(mydataCSE2), type = "spearman")
+corrCSE
+ggcorr(mydataCSE2, method = c("everything", "spearman"))
+```
+**Análisis de componentes principales**
+```{r}
+library(devtools)
+library(factoextra)
+#Análisis por componentes principales
+mydataCSE2.pca <- prcomp(mydataCSE2)
+#Centro
+centerCSE <- mydataCSE2.pca$center
+#Rotación
+rotationCSE <- mydataCSE2.pca$rotation 
+summary(mydataCSE2.pca)
+#Gráfica de contribución por dimensión
+fviz_eig(mydataCSE2.pca)
+#Gráfico que muestra la proximidad de los perfiles de los candidatos entre ellos 
+fviz_pca_ind(mydataCSE2.pca, axes=c(1,2) ,col.ind = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+#Gráfico de la correlación de las variables 
+fviz_pca_var(mydataCSE2.pca, axes = c(1,2) ,col.var = "contrib", gradient.cols= c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+resulstsVarCSE <- get_pca_var(mydataCSE2.pca)
+resulstsVarCSE$cos2
+#espacio para pruebas
+library(ggfortify)
+autoplot(mydataCSE2.pca, data = mydataCSE2, colour = "Job", shape = FALSE, label.size = 3.5)
+```
+**Análisis por regresión logísitica**
+```{r}
+#Se importan las librerías 
+library(glm.predict)
+library(caTools)
+#Separación de los datos en dos segmentos 
+mydataCSE2$Job <- factor(mydataCSE2$Job, levels = c(0,1))
+splitCSE <- sample.split(mydataCSE$Job, SplitRatio = 0.75)
+trainingCSE <- subset(mydataCSE, splitCSE == TRUE)
+testCSE <- subset(mydataCSE, splitCSE == FALSE)
+#Asignación de pesos 
+WSFEN <- c(0.025,0.025,0.12,0.025,0.025,0.025,0.025,0.025, 0.025, 0.05,0.025,0.025,0.025, 0.025, 0.025,0.025,0.025,0.025,0.05,0.025,0.025,0.05,0.025,0.025,0.025,0.025,0.025,0.025,0.15, 0.07,0.025,0.025,0.025,0.025,0.025,0.025,0.07,0.07,0.025,0.15)
+#Se implementa el modelo de regresión logística 
+modelCSE <- glm(Job~.,family = binomial(link = "logit"), data = trainingCSE)
+summary(modelCSE)
+#Se visualizan los datos 
+anova(modelCSE, test = "Chisq")
+```
+**Prueba**
+```{r}
+library(pscl)
+pR2(modelSFEn)
+fitted.resultsCSE <- predict(modelCSE, newdata = testCSE, type = "response")
+fitted.resultsCSE <- ifelse(fitted.resultsCSE > 0.5,1,0)
+misClasificacErrorCSE <- mean(fitted.resultsCSE != testCSE$Job)
+print(paste("Accuracy", 1 - misClasificacErrorCSE))
+```
+**SVM**
+```{r}
+#Clasificador 
+mydataCSE$Job <- as.factor(mydataCSE$Job)
+ClasifCSE <- svm(Job~ Ethical.Hacking + Network.administration + Cybersecurity.Programming.Skills + Risk.management + Project.management + General.purpose.programming.skills + Network.Security + Team.work + Experience, data = trainingCSE, kernel = "linear", cost = 10, scale = FALSE)
+predictCSE <-  predict(ClasifCSE, testCSE[ ,c(49,44,27,11,10,26,43,14,4)] )
+predictCSE == mydataCSE$Job
+1- (8/16)
+```
+**Data Scientist**
+```{r}
+#Se establece el mínimo número de n-gramas 
+minfreq_trigramDTSC <- 2
+#Se establacen las limitaciones a partir de las cuales se buscará un n-grama nuevo 
+token_delimDTSC <- " \\.!?,;\"()"
+#Se tokenizan los términos 
+tokenizerDTSC <- NGramTokenizer(corpDTSC, Weka_control(min = 1, max = 10, delimitersDTSC = token_delimDTSC))
+#Sse transforma en dataframe el token para ser analizado 
+three_wordDTSC <- data.frame(table(tokenizerDTSC))
+#Se ordena el dataframe en orden ascendente 
+sort_threeDTSC <- three_wordDTSC[order(three_wordDTSC$Freq, decreasing = TRUE),]
+sort_threeDTSC
+#Se realiza un gráfico de tipo nube de palabras para observar las palabras más frequentes 
+wordcloud(sort_threeDTSC$tokenizerDTSC,sort_threeDTSC$Freq, random.order = FALSE, scale = c(2.0,0.5), min.freq = minfreq_trigramDTSC, colors = brewer.pal(7,"Dark2"), max.words = 100)
+```
+Esta es la nube de palabras correspondiente para el de científico de datos, podemos observar que las habilidades duras son las más presentadas dentro de los perfiles profesionales; encontrando para el caso del científico de datos; data como la palabra más repetida después dentro de las habilidades duras encontramos la colección de datos, análisis y visualización en el mismo nivel de repetición y como habilidades blandas se destaca la experiencia y la colaboración con términos como experience o contribute team. 
+**Análisis de correlación**
+```{r}
+#Para este análisis de correlación los valores no disponibles son sustituidos por ceros 
+mydataDSC <- read.csv("ProfileITforRegresionDSC(14.11.21.3).csv", header = TRUE)
+View(mydataDSC)
+library(PerformanceAnalytics)
+library(Hmisc)
+View(mydataDSC)
+#Se eliminan los NAs y la columna de nombres, se elimina analitical thinking, french, data visualization y korean
+mydataDSC2 <- mydataDSC[2:36]
+fix(mydataDSC2)
+#Se obtiene la correlación
+corrmydataDSC <- chart.Correlation(mydataDSC2, histogram = T,method = "spearman")
+corrDSC <- rcorr(as.matrix(mydataDSC2), type = "spearman")
+corrDSC
+#Espacio de pruebas para la mejora del gráfico
+ggcorr(mydataDSC2, method = c("everything", "spearman"))
+```
+**Análisis de componentes principales**
+```{r}
+#Se importan las librerías 
+library(devtools)
+library(factoextra)
+View(mydataDSC2)
+#Realizar el análisis del componentes 
+mydataDSC2.pca <- prcomp(mydataDSC2)
+fix(mydataDSC2)
+View(mydataDSC2)
+#Se obtiene la dimensión principal 
+centerDSC <- mydataDSC2.pca$center
+#Se ohservan los componentes de esta dimensión
+centerDSC
+#Gráfica de contribución por dimensión
+fviz_eig(mydataDSC2.pca)
+#Gráfico que muestra la proximidad de los perfiles de los candidatos entre ellos 
+fviz_pca_ind(mydataDSC2.pca, axes=c(1,2) ,col.ind = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+#Gráfico de la correlación de las variables 
+fviz_pca_var(mydataDSC2.pca, axes = c(1,2) ,col.var = "contrib", gradient.cols= c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+#espacio para pruebas
+library(ggfortify)
+autoplot(mydataDSC2.pca, data = mydataDSC2, colour = "Job", shape = FALSE, label.size = 3.5)
+```
+**Análisis por regresión logísitica**
+Entrenamiento
+```{r}
+#Se importan las librerías 
+library(glm.predict)
+library(caTools)
+#Separación de los datos en dos segmentos 
+mydataDSC2$Job <- factor(mydataDSC2$Job, levels = c(0,1))
+split.DSC <- sample.split(mydataDSC, SplitRatio = 0.75)
+traininigDSC <- subset(mydataDSC, split.DSC == TRUE)
+testDSC <- subset(mydataDSC, split.DSC == FALSE)
+#Asignación de pesos 
+WSFEN <- c(0.025,0.025,0.12,0.025,0.025,0.025,0.025,0.025, 0.025, 0.05,0.025,0.025,0.025, 0.025, 0.025,0.025,0.025,0.025,0.05,0.025,0.025,0.05,0.025,0.025,0.025,0.025,0.025,0.025,0.15, 0.07,0.025,0.025,0.025,0.025,0.025,0.025,0.07,0.07,0.025,0.15)
+#Se implementa el modelo de regresión logística 
+modelDSC <- glm(Job~.,family = binomial(link = "logit"), data = traininigDSC)
+summary(modelDSC)
+#Se visualizan los datos 
+anova(modelDSC, test = "Chisq")
+```
+Test
+```{r}
+library(pscl)
+pR2(modelDSC)
+fitted.resultsDSC <- predict(modelDSC, newdata = testDSC, type = "response")
+fitted.resultsDSC <- ifelse(fitted.resultsDSC > -1,1,0)
+misClasificacErrorDSC <- mean(fitted.resultsDSC != testDSC$Job)
+print(paste("Accuracy", 1 - misClasificacErrorDSC))
+```
+SVM
+```{r}
+#Librerías 
+library(e1071)
+#Clasificador 
+mydataDSC$Job <- as.factor(mydataDSC$Job)
+ClasifDSC <- svm(Job~Problem.solving + General.programming.skills + Education.profile + Database.management + Data.visualization.tools + Data.collection + Transforming.data + Team.work, data = traininigDSC, kernel = "linear", cost = 10, scale = FALSE)
+predictDSC <-  predict(ClasifDSC, testDSC[ ,c(19, 24, 6, 25, 27, 33, 34, 18)] )
+predictDSC == mydataDSC$Job
+1-(4/16)
+```
+**Hipótesis**
+Las cualidades blandas de un candidato son tomadas como de igual o mayor importancia que las habilidades duras en los perfiles de los reclutadores al momento de contratar talentos en el área de tencologías de la información, para candidatos con experiencia menor a tres años en México. 
+**Objetivo general:** 
+Demostrar mediante el modelo de proximidad de coseno la cercanía de perfiles construidos por lo reclutadores con los perfiles con experiencia en campo laboral y demostrar el cumplimiento por igual de ambos tipos de habilidades, destacando las 13 habilidades más importantes para cada perfil.
+
+
+
